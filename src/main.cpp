@@ -28,8 +28,8 @@
 
 
 // Cryptocell - nRF52840/nRF9160/nRF53x only. See prj.conf too to enable this Hardware
-#include <nrf_cc3xx_platform.h>
-#include <nrf_cc3xx_platform_entropy.h>
+//#include <nrf_cc3xx_platform.h>
+//#include <nrf_cc3xx_platform_entropy.h>
 
 #include <utility>
 
@@ -40,6 +40,9 @@
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
+
+#define prvHERALD_TESTING_PAYLOAD 1
+#define prvUSE_NRF_CC3XX 0
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
@@ -107,7 +110,7 @@ public:
   /// Measure proximity to target, e.g. a sample of RSSI values from BLE peripheral.
   void sensor(SensorType sensor, const Proximity& didMeasure, const TargetIdentifier& fromTarget) override {
 		LOG_DBG("sensor didMeasure");
-		// LOG_DBG("sensor didMeasure: %s with proximity: %d", str(fromTarget), didMeasure.value); 
+		// LOG_DBG("sensor didMeasure: %s with proximity: %d", str(fromTarget), didMeasure.value);
 	}
 
   /// Detection of time spent at location, e.g. at specific restaurant between 02/06/2020 19:00 and 02/06/2020 21:00
@@ -126,7 +129,7 @@ public:
 	}
 };
 
-
+#if prvUSE_NRF_CC3XX
 void cc3xx_init() {
   // START IMPLEMENTORS GUIDANCE - EXAMPLE CODE NOT NEEDED TO COPY IN TO IN YOUR DEMO APP
   // NOTE TO IMPLEMENTORS: Please remember to use a hardware security module where present.
@@ -160,6 +163,7 @@ void cc3xx_init() {
 	}
 	// END IMPLEMENTORS GUIDANCE
 }
+#endif
 
 void herald_entry() {
 	LOG_DBG("Herald entry");
@@ -174,13 +178,13 @@ void herald_entry() {
 	LOG_DBG("PAST DATE");
 
 	std::shared_ptr<AppLoggingDelegate> appDelegate = std::make_shared<AppLoggingDelegate>();
-	
+
 	// IMPLEMENTORS GUIDANCE - USING HERALD
 	// First initialise the Zephyr Context - this links Herald to any Zephyr OS specific constructs or callbacks
 	std::shared_ptr<ZephyrContext> ctx = std::make_shared<ZephyrContext>();
 
   // Now prepare your device's Herald identity payload - this is what gets sent to other devices when they request it
-	//   SECURITY: Depending on the payload provider, this could be static and in the clear or varying over time. 
+	//   SECURITY: Depending on the payload provider, this could be static and in the clear or varying over time.
 	//             If static, it **could** be used to track a device - so only use the Fixed payload in testing.
 	//             Consider the SecuredPayload or SimplePayload in all other circumstances.
   std::uint16_t countryCode = 826; // UK ISO 3166-1 numeric
@@ -188,39 +192,40 @@ void herald_entry() {
 
 	// TESTING ONLY
 	// IF IN TESTING / DEBUG, USE A FIXED PAYLOAD (SO YOU CAN TRACK IT OVER TIME)
-	// std::uint64_t clientId = 1234567890; // TODO generate unique device ID from device hardware info (for static, test only, payload)
-	// std::uint8_t uniqueId[8];	
-  // // 7. Implement a consistent post restart valid ID from a hardware identifier (E.g. nRF serial number)
-	// auto hwInfoAvailable = hwinfo_get_device_id(uniqueId,sizeof(uniqueId));
-	// if (hwInfoAvailable > 0) {
-	// 	LOG_DBG("Read %d bytes for a unique, persistent, device ID", hwInfoAvailable);
-	// 	clientId = *uniqueId;
-	// } else {
-	// 	LOG_DBG("Couldn't read hardware info for zephyr device. Error code: %d", hwInfoAvailable);
-	// }
-	// LOG_DBG("Final clientID: %d", clientId);
+#if prvHERALD_TESTING_PAYLOAD
+	std::uint64_t clientId = 1234567890; // TODO generate unique device ID from device hardware info (for static, test only, payload)
+  std::uint8_t uniqueId[8];
+  // 7. Implement a consistent post restart valid ID from a hardware identifier (E.g. nRF serial number)
+	auto hwInfoAvailable = hwinfo_get_device_id(uniqueId,sizeof(uniqueId));
+	if (hwInfoAvailable > 0) {
+		LOG_DBG("Read %d bytes for a unique, persistent, device ID", hwInfoAvailable);
+		clientId = *uniqueId;
+	} else {
+		LOG_DBG("Couldn't read hardware info for zephyr device. Error code: %d", hwInfoAvailable);
+	}
+	LOG_DBG("Final clientID: %lld", clientId);
 
-	// std::shared_ptr<ConcreteFixedPayloadDataSupplierV1> pds = std::make_shared<ConcreteFixedPayloadDataSupplierV1>(
-	// 	countryCode,
-	// 	stateCode,
-	// 	clientId
-	// );
+	std::shared_ptr<ConcreteFixedPayloadDataSupplierV1> pds = std::make_shared<ConcreteFixedPayloadDataSupplierV1>(
+		countryCode,
+		stateCode,
+		clientId
+	);
 	// END TESTING ONLY
-
+#else
 	// PRODUCTION ONLY
 	LOG_DBG("Before simple");
 	k_sleep(K_SECONDS(2));
 	// Use the simple payload, or secured payload, that implements privacy features to prevent user tracking
 	herald::payload::simple::K k;
 	// NOTE: You should store a secret key for a period of days and pass the value for the correct epoch in to here instead of sk
-	
+
 	// Note: Using the CC310 to do this. You can use RandomnessSource.h random sources instead if you wish, but CC310 is more secure.
 	herald::payload::simple::SecretKey sk(std::byte(0x00),2048); // fallback - you should do something different.
-	
+
 	size_t buflen = 2048;
 	uint8_t* buf = new uint8_t[buflen];
 	size_t olen = 0;
-	int success = nrf_cc3xx_platform_entropy_get(buf,buflen,&olen); 
+	int success = nrf_cc3xx_platform_entropy_get(buf,buflen,&olen);
 	if (0 == success) {
 		sk.clear();
 		sk.append(buf, 0, buflen);
@@ -246,6 +251,7 @@ void herald_entry() {
 		k
 	);
 	// END PRODUCTION ONLY
+#endif
 	LOG_DBG("Have created Payload data supplier");
 	k_sleep(K_SECONDS(2));
 
@@ -255,7 +261,7 @@ void herald_entry() {
 	auto payload = pds->payload(PayloadTimestamp(),nullptr);
 	sink->log(SensorLoggerLevel::debug,"I've got some payload data");
 	sink->log(SensorLoggerLevel::debug,payload->hexEncodedString());
-	
+
 	auto sink2 = ctx->getLoggingSink("mySub","mySecondCat");
 	sink2->log(SensorLoggerLevel::debug,"Here's some more info for you");
 
@@ -266,14 +272,14 @@ void herald_entry() {
 	sink2->log(SensorLoggerLevel::debug,"Herald debug message");
 	sink2->log(SensorLoggerLevel::info,"Herald info message");
 	sink2->log(SensorLoggerLevel::fault,"Herald error message");
-	
+
 	// Enable transmitter (i.e. this is a Herald device)
 	BLESensorConfiguration::advertisingEnabled = true;
 
-	
+
 	LOG_DBG("Creating sensor array");
 	k_sleep(K_SECONDS(2));
-	
+
 	// Create Herald sensor array - this handles both advertising (Transmitter) and scanning/connecting (Receiver)
 	sa = std::make_shared<SensorArray>(ctx,pds);
 
@@ -282,7 +288,7 @@ void herald_entry() {
 	// std::shared_ptr<ConcretePayloadDataFormatter> pdf = std::make_shared<ConcretePayloadDataFormatter>();
 	// std::shared_ptr<ErrorStreamContactLogger> contactLogger = std::make_shared<ErrorStreamContactLogger>(ctx, pdf);
 	// sa->add(contactLogger);
-	
+
 	// Note: You will likely want to register a SensorDelegate implementation of your own to the sensor array to get callbacks on nearby devices
 	sa->add(appDelegate);
 
@@ -290,7 +296,7 @@ void herald_entry() {
 	// 3. Create and add a Logging sensor delegate to enable testing of discovery
 
 
-	
+
 	LOG_DBG("Starting sensor array");
 	k_sleep(K_SECONDS(2));
 
@@ -301,13 +307,13 @@ void herald_entry() {
 	Date last;
 	int delay = 250; // KEEP THIS SMALL!!! This is how often we check to see if anything needs to happen over a connection.
 	while (1) {
-		k_sleep(K_MSEC(delay)); 
+		k_sleep(K_MSEC(delay));
 		Date now;
 		if (iter > 40 /* && iter < 44 */ ) { // some delay to allow us to see advertising output
 			// You could only do first 3 iterations so we can see the older log messages without continually scrolling through log messages
 			sa->iteration(now - last);
 		}
-		
+
 		if (0 == iter % (5000 / delay)) {
 			LOG_DBG("herald thread still running. Iteration: %d", iter);
 		}
@@ -333,11 +339,13 @@ void main(void)
 		return;
 	}
 
-	LOG_DBG("Logging test");
-	LOG_DBG("Const char* param test: %s","some string param");
-	LOG_DBG("int param test: %d",1234);
+  LOG_DBG("--------------------------------");
+  LOG_DBG("APP START");
+  LOG_DBG("--------------------------------");
 
+#if prvUSE_NRF_CC3XX
 	cc3xx_init();
+#endif
 
 	// Start herald entry on a new thread in case of errors, or needing to do something on the main thread
 	k_tid_t herald_pid = k_thread_create(&herald_thread, herald_stack, 4096,

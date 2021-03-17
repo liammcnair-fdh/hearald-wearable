@@ -32,29 +32,29 @@ set(OVERLAY_CONFIG
 )
 
 if($ENV{BOARD} MATCHES .*nrf5340.*)
-  set(OVERLAY_CONFIG 
-    ${OVERLAY_CONFIG} 
+  set(OVERLAY_CONFIG
+    ${OVERLAY_CONFIG}
     ${BASE_CONFIG}/nrf5340.conf
   )
 elseif($ENV{BOARD} MATCHES .*nrf52840.*)
-  set(OVERLAY_CONFIG 
-    ${OVERLAY_CONFIG} 
+  set(OVERLAY_CONFIG
+    ${OVERLAY_CONFIG}
     ${BASE_CONFIG}/nrf52840.conf
   )
 elseif($ENV{BOARD} MATCHES .*nrf52832.*)
-  set(OVERLAY_CONFIG 
-    ${OVERLAY_CONFIG} 
+  set(OVERLAY_CONFIG
+    ${OVERLAY_CONFIG}
     ${BASE_CONFIG}/nrf52832.conf
   )
 endif()
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  set(OVERLAY_CONFIG 
-    ${OVERLAY_CONFIG} 
+  set(OVERLAY_CONFIG
+    ${OVERLAY_CONFIG}
     ${BASE_CONFIG}/debug.conf
   )
 else()
-  set(OVERLAY_CONFIG 
-    ${OVERLAY_CONFIG} 
+  set(OVERLAY_CONFIG
+    ${OVERLAY_CONFIG}
     ${BASE_CONFIG}/release.conf
   )
 endif()
@@ -75,8 +75,7 @@ set(HERALD_TARGET zephyr)
 
 
 # Include Herald core library
-#set(HERALD_BASE ${CMAKE_CURRENT_SOURCE_DIR}/../herald)
-set(HERALD_BASE "C:/opt/herald-for-cpp/herald")
+set(HERALD_BASE "C:/opt/herald/herald-for-cpp/herald")
 include(${HERALD_BASE}/herald.cmake) # include sources and headers
 
 message("HERALD HEADERS: ${HERALD_HEADERS}")
@@ -96,7 +95,7 @@ add_compile_options(--no-undefined -ffunction-sections -fdata-sections -s -fno-e
 target_sources(app PRIVATE
   ${HERALD_SOURCES}
   ${HERALD_SOURCES_ZEPHYR}
-  #${HERALD_SOURCES_TINYCRYPT}
-  ${HERALD_SOURCES_MBEDTLS}
+  ${HERALD_SOURCES_TINYCRYPT}
+  #  ${HERALD_SOURCES_MBEDTLS}
   src/main.cpp
 )
