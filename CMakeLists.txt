@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 set(NO_BUILD_TYPE_WARNING ON)
 
+set(ENV{BOARD}, nrf5340dk_nrf5340_cpuapp)
 
 # Zephyr build environment variables set here
 #set(ENV{BOARD} nrf52840dongle_nrf52840) # nRF52840 USB dongle

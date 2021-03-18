@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "../../herald/herald.h"
+#include "herald.h"
 
 #include <zephyr.h>
 #include <sys/printk.h>
@@ -63,7 +63,7 @@ LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
 #endif
 
 struct k_thread herald_thread;
-K_THREAD_STACK_DEFINE(herald_stack, 9192); // TODO reduce this down
+K_THREAD_STACK_DEFINE(herald_stack, CONFIG_HERALD_STACK_SIZE); // TODO reduce this down
 
 using namespace herald;
 using namespace herald::data;
@@ -167,20 +167,14 @@ void cc3xx_init() {
 
 void herald_entry() {
 	LOG_DBG("Herald entry");
-	k_sleep(K_MSEC(10000)); // pause so we have time to see Herald initialisation log messages. Don't do this in production!
-	LOG_DBG("Herald setup begins");
+	k_sleep(K_MSEC(1000));
 
-	// Test date/time based things on Zephyr - interesting issues with compliance!
-	Date now;
-	LOG_DBG("BEFORE DATE");
-	std::string s = now.iso8601DateTime();
-	LOG_DBG("DATE: %s", log_strdup(s.c_str()));
-	LOG_DBG("PAST DATE");
-
+  /* Create the app delegate */
 	std::shared_ptr<AppLoggingDelegate> appDelegate = std::make_shared<AppLoggingDelegate>();
 
 	// IMPLEMENTORS GUIDANCE - USING HERALD
 	// First initialise the Zephyr Context - this links Herald to any Zephyr OS specific constructs or callbacks
+  /* Initialize zephyr context */
 	std::shared_ptr<ZephyrContext> ctx = std::make_shared<ZephyrContext>();
 
   // Now prepare your device's Herald identity payload - this is what gets sent to other devices when they request it
@@ -198,13 +192,14 @@ void herald_entry() {
   // 7. Implement a consistent post restart valid ID from a hardware identifier (E.g. nRF serial number)
 	auto hwInfoAvailable = hwinfo_get_device_id(uniqueId,sizeof(uniqueId));
 	if (hwInfoAvailable > 0) {
-		LOG_DBG("Read %d bytes for a unique, persistent, device ID", hwInfoAvailable);
+		//LOG_DBG("Read %d bytes for a unique, persistent, device ID", hwInfoAvailable);
 		clientId = *uniqueId;
 	} else {
-		LOG_DBG("Couldn't read hardware info for zephyr device. Error code: %d", hwInfoAvailable);
+		//LOG_DBG("Couldn't read hardware info for zephyr device. Error code: %d", hwInfoAvailable);
 	}
 	LOG_DBG("Final clientID: %lld", clientId);
 
+  /* Create the payload data supplier */
 	std::shared_ptr<ConcreteFixedPayloadDataSupplierV1> pds = std::make_shared<ConcreteFixedPayloadDataSupplierV1>(
 		countryCode,
 		stateCode,
@@ -213,72 +208,54 @@ void herald_entry() {
 	// END TESTING ONLY
 #else
 	// PRODUCTION ONLY
-	LOG_DBG("Before simple");
-	k_sleep(K_SECONDS(2));
-	// Use the simple payload, or secured payload, that implements privacy features to prevent user tracking
-	herald::payload::simple::K k;
-	// NOTE: You should store a secret key for a period of days and pass the value for the correct epoch in to here instead of sk
-
-	// Note: Using the CC310 to do this. You can use RandomnessSource.h random sources instead if you wish, but CC310 is more secure.
-	herald::payload::simple::SecretKey sk(std::byte(0x00),2048); // fallback - you should do something different.
-
-	size_t buflen = 2048;
-	uint8_t* buf = new uint8_t[buflen];
-	size_t olen = 0;
-	int success = nrf_cc3xx_platform_entropy_get(buf,buflen,&olen);
-	if (0 == success) {
-		sk.clear();
-		sk.append(buf, 0, buflen);
-		LOG_DBG("Have applied CC3xx generated data to secret key");
-	} else {
-		LOG_DBG("Could not generate 2048 bytes of randomness required for SimplePayload Secret Key. Falling back to fixed generic secret key.");
-	}
-
-	// verify secret key
-	for (int i = 0;i < 2048;i+=64) {
-		Data t = sk.subdata(i,64);
-		LOG_DBG("Got 64 bytes from secret key from %d",i);
-	}
-
-	LOG_DBG("About to create Payload data supplier");
-	k_sleep(K_SECONDS(2));
-
-	std::shared_ptr<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1> pds = std::make_shared<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1>(
-		ctx,
-		countryCode,
-		stateCode,
-		sk,
-		k
-	);
+	// LOG_DBG("Before simple");
+	// k_sleep(K_SECONDS(2));
+	// // Use the simple payload, or secured payload, that implements privacy features to prevent user tracking
+	// herald::payload::simple::K k;
+	// // NOTE: You should store a secret key for a period of days and pass the value for the correct epoch in to here instead of sk
+  //
+	// // Note: Using the CC310 to do this. You can use RandomnessSource.h random sources instead if you wish, but CC310 is more secure.
+	// herald::payload::simple::SecretKey sk(std::byte(0x00),2048); // fallback - you should do something different.
+  //
+	// size_t buflen = 2048;
+	// uint8_t* buf = new uint8_t[buflen];
+	// size_t olen = 0;
+	// int success = nrf_cc3xx_platform_entropy_get(buf,buflen,&olen);
+	// if (0 == success) {
+	// 	sk.clear();
+	// 	sk.append(buf, 0, buflen);
+	// 	LOG_DBG("Have applied CC3xx generated data to secret key");
+	// } else {
+	// 	LOG_DBG("Could not generate 2048 bytes of randomness required for SimplePayload Secret Key. Falling back to fixed generic secret key.");
+	// }
+  //
+	// // verify secret key
+	// for (int i = 0;i < 2048;i+=64) {
+	// 	Data t = sk.subdata(i,64);
+	// 	LOG_DBG("Got 64 bytes from secret key from %d",i);
+	// }
+  //
+	// LOG_DBG("About to create Payload data supplier");
+	// k_sleep(K_SECONDS(2));
+  //
+	// std::shared_ptr<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1> pds = std::make_shared<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1>(
+	// 	ctx,
+	// 	countryCode,
+	// 	stateCode,
+	// 	sk,
+	// 	k
+	// );
 	// END PRODUCTION ONLY
 #endif
-	LOG_DBG("Have created Payload data supplier");
-	k_sleep(K_SECONDS(2));
-
-
-	auto sink = ctx->getLoggingSink("mySub","myCat");
-	sink->log(SensorLoggerLevel::debug,"Here's some info for you");
-	auto payload = pds->payload(PayloadTimestamp(),nullptr);
-	sink->log(SensorLoggerLevel::debug,"I've got some payload data");
-	sink->log(SensorLoggerLevel::debug,payload->hexEncodedString());
-
-	auto sink2 = ctx->getLoggingSink("mySub","mySecondCat");
-	sink2->log(SensorLoggerLevel::debug,"Here's some more info for you");
-
-	// LOGGING LEVEL TESTING
-	LOG_DBG("Zephyr debug message");
-	LOG_INF("Zephyr info message");
-	LOG_ERR("Zephyr error message");
-	sink2->log(SensorLoggerLevel::debug,"Herald debug message");
-	sink2->log(SensorLoggerLevel::info,"Herald info message");
-	sink2->log(SensorLoggerLevel::fault,"Herald error message");
+	LOG_DBG("Payload data supplier created!");
+	k_sleep(K_SECONDS(1));
 
 	// Enable transmitter (i.e. this is a Herald device)
 	BLESensorConfiguration::advertisingEnabled = true;
 
 
 	LOG_DBG("Creating sensor array");
-	k_sleep(K_SECONDS(2));
+	k_sleep(K_SECONDS(1));
 
 	// Create Herald sensor array - this handles both advertising (Transmitter) and scanning/connecting (Receiver)
 	sa = std::make_shared<SensorArray>(ctx,pds);
@@ -297,11 +274,12 @@ void herald_entry() {
 
 
 
-	LOG_DBG("Starting sensor array");
+	LOG_DBG("Starting sensor array!");
 	k_sleep(K_SECONDS(2));
 
 	// Start array (and thus start advertising)
 	sa->start(); // There's a corresponding stop() call too
+  //sa->stop();
 
 	int iter = 0;
 	Date last;
@@ -347,8 +325,10 @@ void main(void)
 	cc3xx_init();
 #endif
 
+  LOG_DBG("Starting herald with stack size %d", CONFIG_HERALD_STACK_SIZE);
+
 	// Start herald entry on a new thread in case of errors, or needing to do something on the main thread
-	k_tid_t herald_pid = k_thread_create(&herald_thread, herald_stack, 4096,
+	k_tid_t herald_pid = k_thread_create(&herald_thread, herald_stack, CONFIG_HERALD_STACK_SIZE,
 			(k_thread_entry_t)herald_entry, NULL, NULL, NULL,
 			-1, K_USER,
 			K_NO_WAIT);

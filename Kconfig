@@ -5,3 +5,12 @@
 #	default USB_PID_CONSOLE_SAMPLE
 
 source "Kconfig.zephyr"
+
+menu "HERALD"
+  config HERALD_STACK_SIZE
+  int
+  prompt "Herald thread stack size"
+  default "2048"
+  help
+    "The size of the herald thread"
+endmenu
