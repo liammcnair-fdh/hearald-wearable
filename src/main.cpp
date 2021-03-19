@@ -26,6 +26,8 @@
 #include <bluetooth/gatt.h>
 #include <bluetooth/services/bas.h>
 
+/* Thread analyzer for debug purposes */
+#include <debug/thread_analyzer.h>
 
 // Cryptocell - nRF52840/nRF9160/nRF53x only. See prj.conf too to enable this Hardware
 //#include <nrf_cc3xx_platform.h>
@@ -84,18 +86,21 @@ public:
 	void sensor(SensorType sensor, const TargetIdentifier& didDetect) override {
 		// LOG_DBG("sensor didDetect");
 		LOG_DBG("sensor didDetect: %s", str(didDetect) ); // May want to disable this - logs A LOT of info
+    thread_analyzer_print();
 	}
 
   /// Read payload data from target, e.g. encrypted device identifier from BLE peripheral after successful connection.
   void sensor(SensorType sensor, const PayloadData& didRead, const TargetIdentifier& fromTarget) override {
 		// LOG_DBG("sensor didRead");
 		LOG_DBG("sensor didRead: %s with payload: %s", str(fromTarget), log_strdup(didRead.hexEncodedString().c_str()));
+    thread_analyzer_print();
 	}
 
   /// Receive written immediate send data from target, e.g. important timing signal.
   void sensor(SensorType sensor, const ImmediateSendData& didReceive, const TargetIdentifier& fromTarget) override {
 		// LOG_DBG("sensor didReceive");
 		LOG_DBG("sensor didReceive: %s with immediate send data: %s", str(fromTarget), log_strdup(didReceive.hexEncodedString().c_str()));
+    thread_analyzer_print();
 	}
 
   /// Read payload data of other targets recently acquired by a target, e.g. Android peripheral sharing payload data acquired from nearby iOS peripherals.
@@ -105,27 +110,32 @@ public:
 		// for (auto& p : didShare) {
 		// 	LOG_DBG(" - %s", log_strdup(p.hexEncodedString().c_str()));
 		// }
+    thread_analyzer_print();
 	}
 
   /// Measure proximity to target, e.g. a sample of RSSI values from BLE peripheral.
   void sensor(SensorType sensor, const Proximity& didMeasure, const TargetIdentifier& fromTarget) override {
 		LOG_DBG("sensor didMeasure");
 		// LOG_DBG("sensor didMeasure: %s with proximity: %d", str(fromTarget), didMeasure.value);
+    thread_analyzer_print();
 	}
 
   /// Detection of time spent at location, e.g. at specific restaurant between 02/06/2020 19:00 and 02/06/2020 21:00
   void sensor(SensorType sensor, const Location& didVisit) override {
 		LOG_DBG("sensor didVisit");
+    thread_analyzer_print();
 	}
 
   /// Measure proximity to target with payload data. Combines didMeasure and didRead into a single convenient delegate method
   void sensor(SensorType sensor, const Proximity& didMeasure, const TargetIdentifier& fromTarget, const PayloadData& withPayload) override {
 		LOG_DBG("sensor didMeasure withPayload");
+    thread_analyzer_print();
 	}
 
   /// Sensor state update
   void sensor(SensorType sensor, const SensorState& didUpdateState) override {
 		LOG_DBG("sensor didUpdateState");
+    thread_analyzer_print();
 	}
 };
 
@@ -166,6 +176,7 @@ void cc3xx_init() {
 #endif
 
 void herald_entry() {
+
 	LOG_DBG("Herald entry");
 	k_sleep(K_MSEC(1000));
 
@@ -208,43 +219,43 @@ void herald_entry() {
 	// END TESTING ONLY
 #else
 	// PRODUCTION ONLY
-	// LOG_DBG("Before simple");
-	// k_sleep(K_SECONDS(2));
-	// // Use the simple payload, or secured payload, that implements privacy features to prevent user tracking
-	// herald::payload::simple::K k;
-	// // NOTE: You should store a secret key for a period of days and pass the value for the correct epoch in to here instead of sk
-  //
-	// // Note: Using the CC310 to do this. You can use RandomnessSource.h random sources instead if you wish, but CC310 is more secure.
-	// herald::payload::simple::SecretKey sk(std::byte(0x00),2048); // fallback - you should do something different.
-  //
-	// size_t buflen = 2048;
-	// uint8_t* buf = new uint8_t[buflen];
-	// size_t olen = 0;
-	// int success = nrf_cc3xx_platform_entropy_get(buf,buflen,&olen);
-	// if (0 == success) {
-	// 	sk.clear();
-	// 	sk.append(buf, 0, buflen);
-	// 	LOG_DBG("Have applied CC3xx generated data to secret key");
-	// } else {
-	// 	LOG_DBG("Could not generate 2048 bytes of randomness required for SimplePayload Secret Key. Falling back to fixed generic secret key.");
-	// }
-  //
-	// // verify secret key
-	// for (int i = 0;i < 2048;i+=64) {
-	// 	Data t = sk.subdata(i,64);
-	// 	LOG_DBG("Got 64 bytes from secret key from %d",i);
-	// }
-  //
-	// LOG_DBG("About to create Payload data supplier");
-	// k_sleep(K_SECONDS(2));
-  //
-	// std::shared_ptr<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1> pds = std::make_shared<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1>(
-	// 	ctx,
-	// 	countryCode,
-	// 	stateCode,
-	// 	sk,
-	// 	k
-	// );
+	LOG_DBG("Before simple");
+	k_sleep(K_SECONDS(2));
+	// Use the simple payload, or secured payload, that implements privacy features to prevent user tracking
+	herald::payload::simple::K k;
+	// NOTE: You should store a secret key for a period of days and pass the value for the correct epoch in to here instead of sk
+
+	// Note: Using the CC310 to do this. You can use RandomnessSource.h random sources instead if you wish, but CC310 is more secure.
+	herald::payload::simple::SecretKey sk(std::byte(0x00),2048); // fallback - you should do something different.
+
+	size_t buflen = 2048;
+	uint8_t* buf = new uint8_t[buflen];
+	size_t olen = 0;
+	int success = nrf_cc3xx_platform_entropy_get(buf,buflen,&olen);
+	if (0 == success) {
+		sk.clear();
+		sk.append(buf, 0, buflen);
+		LOG_DBG("Have applied CC3xx generated data to secret key");
+	} else {
+		LOG_DBG("Could not generate 2048 bytes of randomness required for SimplePayload Secret Key. Falling back to fixed generic secret key.");
+	}
+
+	// verify secret key
+	for (int i = 0;i < 2048;i+=64) {
+		Data t = sk.subdata(i,64);
+		LOG_DBG("Got 64 bytes from secret key from %d",i);
+	}
+
+	LOG_DBG("About to create Payload data supplier");
+	k_sleep(K_SECONDS(2));
+
+	std::shared_ptr<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1> pds = std::make_shared<herald::payload::simple::ConcreteSimplePayloadDataSupplierV1>(
+		ctx,
+		countryCode,
+		stateCode,
+		sk,
+		k
+	);
 	// END PRODUCTION ONLY
 #endif
 	LOG_DBG("Payload data supplier created!");
@@ -307,6 +318,8 @@ void main(void)
 	bool led_is_on = true;
 	int ret;
 
+  k_thread_name_set(k_current_get(), "MAIN");
+
 	dev = device_get_binding(LED0);
 	if (dev == NULL) {
 		return;
@@ -333,6 +346,8 @@ void main(void)
 			-1, K_USER,
 			K_NO_WAIT);
 
+  k_thread_name_set(herald_pid, "HERALD");
+
   // herald_entry();
   // NOTE Above only works if CONFIG_MAIN_STACK_SIZE=2048 is set in prj.conf
 
@@ -340,11 +355,12 @@ void main(void)
 	 * of starting delayed work so we do it here
 	 */
 	while (1) {
-		k_sleep(K_SECONDS(2));
+		k_sleep(K_MSEC(1000));
 		gpio_pin_set(dev, PIN, (int)led_is_on);
 		led_is_on = !led_is_on;
 
-		LOG_DBG("main thread still running");
+		//LOG_DBG("main thread still running");
+    //thread_analyzer_print();
 
 		// TODO Add logic here to detect failure in Herald thread, and restart to resume as necessary
 	}
