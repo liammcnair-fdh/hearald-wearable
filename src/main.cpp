@@ -26,12 +26,16 @@
 #include <bluetooth/gatt.h>
 #include <bluetooth/services/bas.h>
 
+#if CONFIG_HERALD_DEBUG
 /* Thread analyzer for debug purposes */
 #include <debug/thread_analyzer.h>
+#endif
 
+#if CONFIG_HERALD_USE_CC3XX_BACKEND
 // Cryptocell - nRF52840/nRF9160/nRF53x only. See prj.conf too to enable this Hardware
-//#include <nrf_cc3xx_platform.h>
-//#include <nrf_cc3xx_platform_entropy.h>
+#include <nrf_cc3xx_platform.h>
+#include <nrf_cc3xx_platform_entropy.h>
+#endif
 
 #include <utility>
 
@@ -41,10 +45,8 @@
 #include <drivers/hwinfo.h>
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
 
-#define prvHERALD_TESTING_PAYLOAD 1
-#define prvUSE_NRF_CC3XX 0
+LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
@@ -53,19 +55,26 @@ LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
 #define LED0_NODE DT_ALIAS(led0)
 
 #if DT_NODE_HAS_STATUS(LED0_NODE, okay)
-#define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
-#define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
-#define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
+  #define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
+  #define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
+  #define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
 #else
 /* A build error here means your board isn't set up to blink an LED. */
-#error "Unsupported board: led0 devicetree alias is not defined"
-#define LED0	""
-#define PIN	0
-#define FLAGS	0
+  #error "Unsupported board: led0 devicetree alias is not defined"
+  #define LED0	""
+  #define PIN	0
+  #define FLAGS	0
+#endif
+
+/* Enable or dissable thread analuser */
+#if CONFIG_HERALD_DEBUG
+#define prvPRINT_THREAD_ANALYZER() thread_analyzer_print()
+#else
+#define prvPRINT_THREAD_ANALYZER() ((void)(0))
 #endif
 
 struct k_thread herald_thread;
-K_THREAD_STACK_DEFINE(herald_stack, CONFIG_HERALD_STACK_SIZE); // TODO reduce this down
+K_THREAD_STACK_DEFINE(herald_stack, CONFIG_HERALD_STACK_SIZE);
 
 using namespace herald;
 using namespace herald::data;
@@ -86,21 +95,18 @@ public:
 	void sensor(SensorType sensor, const TargetIdentifier& didDetect) override {
 		// LOG_DBG("sensor didDetect");
 		LOG_DBG("sensor didDetect: %s", str(didDetect) ); // May want to disable this - logs A LOT of info
-    thread_analyzer_print();
 	}
 
   /// Read payload data from target, e.g. encrypted device identifier from BLE peripheral after successful connection.
   void sensor(SensorType sensor, const PayloadData& didRead, const TargetIdentifier& fromTarget) override {
 		// LOG_DBG("sensor didRead");
 		LOG_DBG("sensor didRead: %s with payload: %s", str(fromTarget), log_strdup(didRead.hexEncodedString().c_str()));
-    thread_analyzer_print();
 	}
 
   /// Receive written immediate send data from target, e.g. important timing signal.
   void sensor(SensorType sensor, const ImmediateSendData& didReceive, const TargetIdentifier& fromTarget) override {
 		// LOG_DBG("sensor didReceive");
 		LOG_DBG("sensor didReceive: %s with immediate send data: %s", str(fromTarget), log_strdup(didReceive.hexEncodedString().c_str()));
-    thread_analyzer_print();
 	}
 
   /// Read payload data of other targets recently acquired by a target, e.g. Android peripheral sharing payload data acquired from nearby iOS peripherals.
@@ -110,36 +116,34 @@ public:
 		// for (auto& p : didShare) {
 		// 	LOG_DBG(" - %s", log_strdup(p.hexEncodedString().c_str()));
 		// }
-    thread_analyzer_print();
 	}
 
   /// Measure proximity to target, e.g. a sample of RSSI values from BLE peripheral.
   void sensor(SensorType sensor, const Proximity& didMeasure, const TargetIdentifier& fromTarget) override {
 		LOG_DBG("sensor didMeasure");
 		// LOG_DBG("sensor didMeasure: %s with proximity: %d", str(fromTarget), didMeasure.value);
-    thread_analyzer_print();
+		prvPRINT_THREAD_ANALYZER();
 	}
 
   /// Detection of time spent at location, e.g. at specific restaurant between 02/06/2020 19:00 and 02/06/2020 21:00
-  void sensor(SensorType sensor, const Location& didVisit) override {
+	template <typename LocationT>
+  void sensor(SensorType sensor, const Location<LocationT>& didVisit) {
 		LOG_DBG("sensor didVisit");
-    thread_analyzer_print();
 	}
 
   /// Measure proximity to target with payload data. Combines didMeasure and didRead into a single convenient delegate method
   void sensor(SensorType sensor, const Proximity& didMeasure, const TargetIdentifier& fromTarget, const PayloadData& withPayload) override {
 		LOG_DBG("sensor didMeasure withPayload");
-    thread_analyzer_print();
+    prvPRINT_THREAD_ANALYZER();
 	}
 
   /// Sensor state update
   void sensor(SensorType sensor, const SensorState& didUpdateState) override {
 		LOG_DBG("sensor didUpdateState");
-    thread_analyzer_print();
 	}
 };
 
-#if prvUSE_NRF_CC3XX
+#if CONFIG_HERALD_USE_CC3XX_BACKEND
 void cc3xx_init() {
   // START IMPLEMENTORS GUIDANCE - EXAMPLE CODE NOT NEEDED TO COPY IN TO IN YOUR DEMO APP
   // NOTE TO IMPLEMENTORS: Please remember to use a hardware security module where present.
@@ -197,11 +201,17 @@ void herald_entry() {
 
 	// TESTING ONLY
 	// IF IN TESTING / DEBUG, USE A FIXED PAYLOAD (SO YOU CAN TRACK IT OVER TIME)
-#if prvHERALD_TESTING_PAYLOAD
+#if CONFIG_HERALD_USE_TEST_PAYLOAD
 	std::uint64_t clientId = 1234567890; // TODO generate unique device ID from device hardware info (for static, test only, payload)
   std::uint8_t uniqueId[8];
   // 7. Implement a consistent post restart valid ID from a hardware identifier (E.g. nRF serial number)
-	auto hwInfoAvailable = hwinfo_get_device_id(uniqueId,sizeof(uniqueId));
+  int hwInfoAvailable;
+  #ifdef CMAKE_C_FLAGS_DEBUG
+  hwInfoAvailable = hwinfo_get_device_id(uniqueId,sizeof(uniqueId))
+  #else
+  hwInfoAvailable = -1;
+  #endif
+
 	if (hwInfoAvailable > 0) {
 		//LOG_DBG("Read %d bytes for a unique, persistent, device ID", hwInfoAvailable);
 		clientId = *uniqueId;
@@ -334,7 +344,7 @@ void main(void)
   LOG_DBG("APP START");
   LOG_DBG("--------------------------------");
 
-#if prvUSE_NRF_CC3XX
+#if CONFIG_HERALD_USE_CC3XX_BACKEND
 	cc3xx_init();
 #endif
 
@@ -355,13 +365,23 @@ void main(void)
 	 * of starting delayed work so we do it here
 	 */
 	while (1) {
-		k_sleep(K_MSEC(1000));
+		k_sleep(K_MSEC(100));
 		gpio_pin_set(dev, PIN, (int)led_is_on);
 		led_is_on = !led_is_on;
 
 		//LOG_DBG("main thread still running");
-    //thread_analyzer_print();
+    prvPRINT_THREAD_ANALYZER();
 
 		// TODO Add logic here to detect failure in Herald thread, and restart to resume as necessary
 	}
+}
+
+extern "C"{
+void _exit(int status)
+{
+	printk("exit! status:%d\n",status);
+	while (1) {
+		;
+	}
+}
 }

@@ -8,22 +8,33 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 set(NO_BUILD_TYPE_WARNING ON)
 
+
 if(DEFINED BOARD)
   set(ENV{BOARD} ${BOARD})
 endif()
 
+# TODO: Fix the following line
+#set(HERALD_BASE "C:\\opt\\herald\\herald-for-cpp-af\\herald")
+#set(CMAKE_BUILD_TYPE Debug)
+
+if(NOT DEFINED HERALD_BASE)
+  if(DEFINED ENV{HERALD_BASE})
+    set(HERALD_BASE $ENV{HERALD_BASE})
+  else()
+    message(FATAL_ERROR "HERALD_BASE not set")
+  endif()
+endif()
+
 # Zephyr build environment variables set here
 #set(ENV{BOARD} nrf52840dongle_nrf52840) # nRF52840 USB dongle
-#set(ENV{BOARD} nrf52dk_nrf52832) # nRF52832 USB dongle
+set(ENV{BOARD} nrf52dk_nrf52832) # nRF52832 USB dongle
 #set(ENV{BOARD} nrf5340dk_nrf5340_cpuapp) # nRF5340 DK using secure app core
+
 # Detect if already set. If not, default to latest nRF DK board (5340)
 if(DEFINED ENV{BOARD})
   message("Using board specified in BOARD variable: $ENV{BOARD}")
 else()
-  message("No board specified in BOARD variable. Defaulting to nrf5340dk app core")
-  set(ENV{BOARD} nrf5340dk_nrf5340_cpuapp) # nRF5340 DK using secure app core
-  set(ENV{ARCH} arm)
-  message("BOARD variable now set to: $ENV{BOARD}")
+  message(FATAL_ERROR "BOARD not set")
 endif()
 
 # Specify additional PROJ settings based on build settings
@@ -78,7 +89,7 @@ set(HERALD_TARGET zephyr)
 
 
 # Include Herald core library
-set(HERALD_BASE "C:/opt/herald/herald-for-cpp/herald")
+#set(HERALD_BASE "C:/opt/herald/herald-for-cpp/herald")
 include(${HERALD_BASE}/herald.cmake) # include sources and headers
 
 message("HERALD HEADERS: ${HERALD_HEADERS}")
@@ -92,8 +103,20 @@ else()
 endif()
 #HERALD_LOG_LEVEL 4 = debug, 3 = info, 2 = warn / errors (Zephyr LOG_WARN), 1 = info contacts log only (Zephyr LOG_ERR)
 
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+  add_compile_options(-O0)
+endif()
+
 # gcc arm does not warn about missing defs until runtime
-add_compile_options(--no-undefined -ffunction-sections -fdata-sections -s -fno-exception -fno-rtti -Wl,-z,defs,norelro,--strict,--strict_symbols,--gc-sections,--hash-style=gnu)
+add_compile_options(
+  --no-undefined
+  -ffunction-sections
+  -fdata-sections
+  -s
+  -fno-exception
+  -fno-rtti
+  -Wl,-z,defs,norelro,--strict,--strict_symbols,--gc-sections,--hash-style=gnu
+  )
 
 target_sources(app PRIVATE
   ${HERALD_SOURCES}

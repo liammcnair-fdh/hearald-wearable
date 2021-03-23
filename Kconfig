@@ -7,10 +7,27 @@
 source "Kconfig.zephyr"
 
 menu "HERALD"
+  config HERALD_DEBUG
+  bool "Enable debug mode"
+  default y
+  help
+    "Enable debugging print outs"
+
   config HERALD_STACK_SIZE
-  int
-  prompt "Herald thread stack size"
+  int "Herald thread stack size"
   default "2048"
   help
     "The size of the herald thread"
+
+  config HERALD_USE_TEST_PAYLOAD
+  bool "Use test payload"
+  default y
+  help
+    "Enable a test payload instead of the real thing"
+
+  config HERALD_USE_CC3XX_BACKEND
+  bool "use CC3XX backend"
+  default n
+  help
+    "Enable the CC3XX backend and initialization in main.cpp"
 endmenu
