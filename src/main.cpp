@@ -26,6 +26,8 @@
 #include <bluetooth/gatt.h>
 #include <bluetooth/services/bas.h>
 
+#include <power/reboot.h>
+
 #if CONFIG_HERALD_DEBUG
 /* Thread analyzer for debug purposes */
 #include <debug/thread_analyzer.h>
@@ -370,18 +372,16 @@ void main(void)
 		led_is_on = !led_is_on;
 
 		//LOG_DBG("main thread still running");
-    prvPRINT_THREAD_ANALYZER();
+    	prvPRINT_THREAD_ANALYZER();
 
 		// TODO Add logic here to detect failure in Herald thread, and restart to resume as necessary
 	}
 }
 
-extern "C"{
-void _exit(int status)
+extern "C" void _exit(int status)
 {
-	printk("exit! status:%d\n",status);
-	while (1) {
-		;
-	}
+	printk("ERR: exit! status:%d\n",status);
+	printk("********* Rebooting system *********\n\n");
+	sys_reboot(SYS_REBOOT_WARM);
 }
-}
+
